@@ -15,18 +15,20 @@ from z3 import (
     Implies,
     PbGe,
     If,
+    Function,
+    IntSort,
 )
 
 # format from https://github.com/sangchoo1201/taiji_maker/blob/master/src/file.py
 
-DOT = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -9, -8, -7, -6, -5, -4, -3, -2, -1]
+DOT = [99999, 1, 2, 3, 4, 5, 6, 7, 8, 9, -9, -8, -7, -6, -5, -4, -3, -2, -1]
 DIAMOND = 10
 DASH = 11
 SLASH = 12
 FLOWER = [20, 21, 22, 23, 24]
 NONE = 0
 SYMBOLS = DOT[1:10] + DOT[-1:-10:-1] + [DIAMOND, DASH, SLASH, *FLOWER] + [NONE]
-COLORS = set("roygbpkw")
+COLORS = "roygbpkw"
 
 PRINT_CHARS = [".", "#"]
 
@@ -108,7 +110,9 @@ def neighbors(x: int, y: int) -> Iterator[Tile]:
 
 
 puzzle = decode("5:00Sp+EFy+CJp00X00Jy+CFp+ESy+C")
-# puzzle = decode("2:+D")
+# puzzle = decode("4:0So+CW0Dr+CSp00Sr0So0")
+
+print("Setting up constraints...")
 
 width = len(puzzle[0])
 height = len(puzzle)
@@ -144,7 +148,7 @@ for y, row in enumerate(puzzle):
         if c.symbol in FLOWER:
             s.add(
                 PbEq(
-                    [(c.cond != n.cond, 1) for n in neighbors(x, y)],
+                    [(c.cond == n.cond, 1) for n in neighbors(x, y)],
                     FLOWER.index(c.symbol),
                 )
             )
@@ -185,19 +189,53 @@ s.add(euler_characteristic == 1)
 # this only works if faces is an int, could be used to brute-force faces
 # s.add(PbEq(euler_pb, 1 - faces - additional_vertecies + additional_edges))
 
-# Ensure that each region from 0 to faces exists (i.e. has a cell)
 region = FreshInt()
 region_valid = And(region >= 0, region < faces)
-s.add(
-    ForAll(
-        [region],
-        Implies(
-            region_valid,
-            PbGe([(c.area == region, 1) for row in puzzle for c in row], 1),
-        ),
+for_each_region = []
+
+# Ensure that each region from 0 to faces exists (i.e. has a cell)
+for_each_region.append(PbGe([(c.area == region, 1) for row in puzzle for c in row], 1))
+
+# Dice
+dice_sum = sum(
+    If(c.area == region, c.symbol, 0) for row in puzzle for c in row if c.symbol in DOT
+)
+for_each_region.append(
+    Or(
+        sum(If(c.area == region, 1, 0) for row in puzzle for c in row) == dice_sum,
+        dice_sum == 0,
     )
 )
+region_dice_color = Function("f", IntSort(), IntSort())
+for row in puzzle:
+    for c in row:
+        if c.symbol != NONE and c.symbol in DOT and c.color:
+            s.add(region_dice_color(c.area) == COLORS.index(c.color))
 
+s.add(ForAll([region], Implies(region_valid, And(*for_each_region),),))
+
+# Diamonds
+for row in puzzle:
+    for c in row:
+        if c.symbol == DIAMOND and c.color:
+            s.add(
+                PbEq(
+                    [
+                        (c.area == n.area, 1)
+                        for row2 in puzzle
+                        for n in row2
+                        if n != c
+                        and (
+                            n.color == c.color
+                            or (c.color == "p" and n.symbol in FLOWER[:-1])
+                            or (c.color == "y" and n.symbol in FLOWER[1:])
+                        )
+                    ],
+                    1,
+                )
+            )
+
+print("Solving...")
 result = s.check()
 print(result)
 
