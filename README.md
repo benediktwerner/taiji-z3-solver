@@ -26,3 +26,7 @@
   - If different colored dice exist, also define a z3 function f that assigns each area a color (just an int, corresponding to the index of the color) and enforce that f(dice.area) == dice.color for all dice
 - For diamonds:
   - Now also trivial: enforce that the number of cells with the same color and area as the diamond equals one
+
+## Credit
+- The method to represent areas is based on ideas from the blog post [Solving The Witness with Z3](https://www.techofnote.com/witness-part-1)
+- And ofc this is only possible due to the amazing [z3 prover](https://github.com/Z3Prover/z3)
