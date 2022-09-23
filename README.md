@@ -11,7 +11,7 @@
 
 ## How it works
 - Each cell has a z3 Bool to determine whether it's on or off and a z3 Int to determin the area it's in
-- Flower constraints are trivial constraint that number of neighbors with n.lit != flower.lit is equal to the yellow petals
+- Flowers are trivial: Constrain that number of neighbors with n.lit != flower.lit is equal to the yellow petals
 - For all neighboring cells, enforce a.area == b.area <=> a.lit == b.lit
 - But this allows disconnected areas getting assigned the same number i.e. being considered the same
 - To solve this, we create a z3 Int for number of areas
