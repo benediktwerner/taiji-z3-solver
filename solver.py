@@ -38,10 +38,9 @@ class Tile:
     color: Optional[str] = None
     symbol: int = NONE
     fixed: bool = False
-    lit: bool = False
     hidden: bool = False
     exist: bool = True
-    cond: Any = None
+    lit: Any = None
     area: Any = None
 
 
@@ -62,7 +61,8 @@ def decode(data: str) -> List[List[Tile]]:
         tile = Tile()
         if data[i] != "0":
             if data[i] in "<^/":
-                raise Exception("connected tiles aren't supported")
+                print("connected tiles aren't supported")
+                exit(1)
                 # connected = {"^": (False, True), "<": (True, False), "/": (True, True)}[
                 #     data[i]
                 # ]
@@ -71,6 +71,9 @@ def decode(data: str) -> List[List[Tile]]:
                 # i += 1
             if 65 <= ord(data[i]) <= 90:
                 tile.symbol = SYMBOLS[ord(data[i]) - 65]
+                if tile.symbol in (SLASH, DASH):
+                    print("dashes aren't supported")
+                    exit(1)
                 i += 1
             if data[i] in COLORS:
                 tile.color = data[i]
@@ -109,8 +112,7 @@ def neighbors(x: int, y: int) -> Iterator[Tile]:
                 yield tile
 
 
-puzzle = decode("5:00Sp+EFy+CJp00X00Jy+CFp+ESy+C")
-# puzzle = decode("4:0So+CW0Dr+CSp00Sr0So0")
+puzzle = decode(input("Enter Taiji Maker puzzle code: "))
 
 print("Setting up constraints...")
 
@@ -127,7 +129,8 @@ s = Solver()
 for row in puzzle:
     for c in row:
         if c.exist:
-            c.cond = c.lit if c.fixed else FreshBool()
+            if not c.fixed:
+                c.lit = FreshBool()
             c.area = FreshInt()
             s.add(c.area >= 0)
             s.add(c.area < faces)
@@ -139,16 +142,16 @@ for y, row in enumerate(puzzle):
             continue
 
         if x > 0 and (n := puzzle[y][x - 1]).exist:
-            euler_pb.append((c.cond != n.cond, -1))
-            s.add((c.cond == n.cond) == (c.area == n.area))
+            euler_pb.append((c.lit != n.lit, -1))
+            s.add((c.lit == n.lit) == (c.area == n.area))
         if y > 0 and (n := puzzle[y - 1][x]).exist:
-            euler_pb.append((c.cond != n.cond, -1))
-            s.add((c.cond == n.cond) == (c.area == n.area))
+            euler_pb.append((c.lit != n.lit, -1))
+            s.add((c.lit == n.lit) == (c.area == n.area))
 
         if c.symbol in FLOWER:
             s.add(
                 PbEq(
-                    [(c.cond == n.cond, 1) for n in neighbors(x, y)],
+                    [(c.lit == n.lit, 1) for n in neighbors(x, y)],
                     FLOWER.index(c.symbol),
                 )
             )
@@ -162,13 +165,13 @@ for y in range(height - 1):
         )
         if a.exist:
             if b.exist:
-                conds.append(a.cond != b.cond)
+                conds.append(a.lit != b.lit)
             if c.exist:
-                conds.append(a.cond != c.cond)
+                conds.append(a.lit != c.lit)
         if b.exist and d.exist:
-            conds.append(b.cond != d.cond)
+            conds.append(b.lit != d.lit)
         if c.exist and d.exist:
-            conds.append(c.cond != d.cond)
+            conds.append(c.lit != d.lit)
 
         if conds:
             euler_pb.append((Or(*conds), 1))
@@ -197,20 +200,22 @@ for_each_region = []
 for_each_region.append(PbGe([(c.area == region, 1) for row in puzzle for c in row], 1))
 
 # Dice
-dice_sum = sum(
-    If(c.area == region, c.symbol, 0) for row in puzzle for c in row if c.symbol in DOT
-)
-for_each_region.append(
-    Or(
-        sum(If(c.area == region, 1, 0) for row in puzzle for c in row) == dice_sum,
-        dice_sum == 0,
+if any(c.symbol in DOT for row in puzzle for c in row):
+    dice_sum = sum(
+        If(c.area == region, c.symbol, 0) for row in puzzle for c in row if c.symbol in DOT
     )
-)
-region_dice_color = Function("f", IntSort(), IntSort())
-for row in puzzle:
-    for c in row:
-        if c.symbol != NONE and c.symbol in DOT and c.color:
-            s.add(region_dice_color(c.area) == COLORS.index(c.color))
+    for_each_region.append(
+        Or(
+            sum(If(c.area == region, 1, 0) for row in puzzle for c in row) == dice_sum,
+            dice_sum == 0,
+        )
+    )
+    if len(set(c.color for row in puzzle for c in row)) > 1:
+        region_dice_color = Function("f", IntSort(), IntSort())
+        for row in puzzle:
+            for c in row:
+                if c.symbol != NONE and c.symbol in DOT and c.color:
+                    s.add(region_dice_color(c.area) == COLORS.index(c.color))
 
 s.add(ForAll([region], Implies(region_valid, And(*for_each_region),),))
 
@@ -249,24 +254,9 @@ if result == sat:
             elif c.fixed:
                 line.append(PRINT_CHARS[c.lit])
             else:
-                val = model[c.cond]
+                val = model[c.lit]
                 if val is None:
                     line.append("~")
                 else:
                     line.append(PRINT_CHARS[bool(val)])
-        print("".join(line))
-
-    print("---")
-
-    for row in puzzle:
-        line = []
-        for c in row:
-            if not c.exist:
-                line.append(" ")
-            else:
-                val = model[c.area]
-                if val is None:
-                    line.append("~")
-                else:
-                    line.append(str(val))
         print("".join(line))
