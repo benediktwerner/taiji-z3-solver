@@ -18,7 +18,7 @@
 - To solve this, we create a z3 Int for number of areas
   - Constrained by Euler characteristic (vertecies - edges + faces = 1)
   - Put vertex at each cell corner along an area border
-  - Number of edges: sum of If(a.lit != b.lit, 1, 0) for all neighboring cells + fixed number of edges towards the outside
+  - Number of edges: sum of neighboring cell pairs where a.lit != b.lit + fixed number of edges towards the outside
   - Number of vertecies: similar but instead check for each corner if any of the four neighboring cells that share a border don't have the same state
 - Then we can enforce that there exist that many different area values (or rather, that there exists at least one cell with each area value from 0 to the number of areas) which automatically enforces that each area has a unique number
 - For dice:
