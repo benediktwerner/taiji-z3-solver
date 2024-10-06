@@ -2,7 +2,7 @@
 
 ## Requirements:
 - Python 3.7+
-- z3: `pip install z3`
+- z3: `pip install z3-solver`
 
 ## Usage
 - `python3 solver.py`
